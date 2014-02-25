@@ -1,4 +1,6 @@
 #include "BTreeNode.h"
+#include <iterator>
+#include <algorithm>
 
 using namespace std;
 
@@ -9,7 +11,19 @@ using namespace std;
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTLeafNode::read(PageId pid, const PageFile& pf)
-{ return 0; }
+{ 
+	RC code = pf.read(pid, buffer);
+	memcpy(&keyCount, buffer, sizeof(int));
+	memcpy(&nextNode, buffer + sizeof(int), sizeof(PageId));
+	for(int i=0; i < keyCount; i++) {
+		int key; RecordId rid;
+		char* bufferOffset = (buffer + sizeof(int) + sizeof(PageId)) + i * ENTRY_SIZE;
+		memcpy(&key, bufferOffset, sizeof(int));
+		memcpy(&rid, bufferOffset + sizeof(int), sizeof(RecordId));
+		insert(key, rid);
+	}
+	return code;
+}
     
 /*
  * Write the content of the node to the page pid in the PageFile pf.
@@ -18,14 +32,29 @@ RC BTLeafNode::read(PageId pid, const PageFile& pf)
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTLeafNode::write(PageId pid, PageFile& pf)
-{ return 0; }
+{
+	memset(buffer, 0, PageFile::PAGE_SIZE);
+	memcpy(buffer, &keyCount, sizeof(int));
+	memcpy(buffer + sizeof(int), &nextNode, sizeof(PageId));
+
+	map<int, RecordId>::iterator it; int i;
+	for(it = nodeBuckets.begin(), i=0; it != nodeBuckets.end(); ++it, i++) {
+		char* bufferOffset = (buffer + sizeof(int) + sizeof(PageId)) + i * ENTRY_SIZE;
+		memcpy(bufferOffset, &it->first, sizeof(int));
+		memcpy(bufferOffset + sizeof(int), &it->second, sizeof(RecordId));
+	}
+	RC code = pf.write(pid, buffer);
+	return code; 
+}
 
 /*
  * Return the number of keys stored in the node.
  * @return the number of keys in the node
  */
 int BTLeafNode::getKeyCount()
-{ return 0; }
+{ 
+	return keyCount; 
+}
 
 /*
  * Insert a (key, rid) pair to the node.
@@ -34,7 +63,15 @@ int BTLeafNode::getKeyCount()
  * @return 0 if successful. Return an error code if the node is full.
  */
 RC BTLeafNode::insert(int key, const RecordId& rid)
-{ return 0; }
+{ 
+	if(nodeBuckets.size() >= ENTRY_LIMIT) {
+		return RC_NODE_FULL;
+	} else {
+		nodeBuckets[key] = rid;
+		keyCount++;
+	}
+	return 0; 
+}
 
 /*
  * Insert the (key, rid) pair to the node
@@ -48,7 +85,28 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
  */
 RC BTLeafNode::insertAndSplit(int key, const RecordId& rid, 
                               BTLeafNode& sibling, int& siblingKey)
-{ return 0; }
+{ 
+	// Insert key and record id
+	nodeBuckets[key] = rid;
+
+	// Set up the iterators 
+	int halfLocation = nodeBuckets.size()/2;
+	map<int, RecordId>::iterator itHalf = nodeBuckets.begin();
+	advance(itHalf, halfLocation);
+
+	// Copy the second half of the node to the new sibling node and then erase this data from the current node
+	for(map<int, RecordId>::iterator it = itHalf; it != nodeBuckets.end(); ++it) {
+		sibling.nodeBuckets[it->first] = it->second;
+	}
+	// Erase the split data and set the key count right
+	nodeBuckets.erase(itHalf, nodeBuckets.end());
+	keyCount = nodeBuckets.size();
+
+	// Set the sibling key to the first key in the sibling node and set the siblings key count
+	siblingKey = sibling.nodeBuckets.begin()->first;
+	sibling.keyCount = sibling.nodeBuckets.size();
+	return 0; 
+}
 
 /*
  * Find the entry whose key value is larger than or equal to searchKey
@@ -59,7 +117,17 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTLeafNode::locate(int searchKey, int& eid)
-{ return 0; }
+{
+	int i = 0;
+	for(map<int, RecordId>::iterator it = nodeBuckets.begin(); it != nodeBuckets.end(); ++it) {
+		if(it->first >= searchKey) {
+			eid = i;
+			break;
+		}
+		i++;
+	}
+	return 0;
+}
 
 /*
  * Read the (key, rid) pair from the eid entry.
@@ -69,14 +137,22 @@ RC BTLeafNode::locate(int searchKey, int& eid)
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTLeafNode::readEntry(int eid, int& key, RecordId& rid)
-{ return 0; }
+{ 
+	map<int, RecordId>::iterator it = nodeBuckets.begin();
+	advance(it, eid);
+	key = it->first;
+	rid = it->second;
+	return 0;
+}
 
 /*
  * Return the pid of the next slibling node.
  * @return the PageId of the next sibling node 
  */
 PageId BTLeafNode::getNextNodePtr()
-{ return 0; }
+{ 
+	return nextNode; 
+}
 
 /*
  * Set the pid of the next slibling node.
@@ -84,7 +160,10 @@ PageId BTLeafNode::getNextNodePtr()
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTLeafNode::setNextNodePtr(PageId pid)
-{ return 0; }
+{ 
+	nextNode = pid;
+	return 0; 
+}
 
 /*
  * Read the content of the node from the page pid in the PageFile pf.

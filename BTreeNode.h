@@ -12,17 +12,22 @@
 
 #include "RecordFile.h"
 #include "PageFile.h"
+#include <map>
 
 /**
  * BTLeafNode: The class representing a B+tree leaf node.
  */
 class BTLeafNode {
   public:
+    static const size_t ENTRY_SIZE = sizeof(RecordId) + sizeof(int);
+    static const int ENTRY_LIMIT = (PageFile::PAGE_SIZE - (sizeof(int) + sizeof(PageId))) / ENTRY_SIZE;
+
    /**
     * Insert the (key, rid) pair to the node.
     * Remember that all keys inside a B+tree node should be kept sorted.
     * @param key[IN] the key to insert
     * @param rid[IN] the RecordId to insert
+    * @param n[IN] the branch factor of the tree
     * @return 0 if successful. Return an error code if the node is full.
     */
     RC insert(int key, const RecordId& rid);
@@ -102,6 +107,21 @@ class BTLeafNode {
     * that contains the node.
     */
     char buffer[PageFile::PAGE_SIZE];
+
+    /**
+     * Integer that keeps track of the key count
+     */
+    int keyCount;
+
+    /**
+     * Vector of maps used to store the record ID and key relations of the node
+     */
+    std::map<int, RecordId> nodeBuckets;
+
+    /**
+     * Pointer to next node
+     */
+    PageId nextNode;
 }; 
 
 
@@ -180,6 +200,16 @@ class BTNonLeafNode {
     * that contains the node.
     */
     char buffer[PageFile::PAGE_SIZE];
+
+    /**
+     * Integer that keeps track of the key count
+     */
+    int keyCount;
+
+    /**
+     * Vector of maps used to store the page ID and key relations of the node
+     */
+    std::map<PageId, int> nodeBuckets;
 }; 
 
 #endif /* BTNODE_H */
