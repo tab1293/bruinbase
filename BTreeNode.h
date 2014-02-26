@@ -22,6 +22,7 @@ class BTLeafNode {
     static const size_t ENTRY_SIZE = sizeof(RecordId) + sizeof(int);
     static const int ENTRY_LIMIT = (PageFile::PAGE_SIZE - (sizeof(int) + sizeof(PageId))) / ENTRY_SIZE;
 
+    BTLeafNode();
    /**
     * Insert the (key, rid) pair to the node.
     * Remember that all keys inside a B+tree node should be kept sorted.
@@ -101,6 +102,8 @@ class BTLeafNode {
     */
     RC write(PageId pid, PageFile& pf);
 
+    void printNode();
+
   private:
    /**
     * The main memory buffer for loading the content of the disk page 
@@ -130,6 +133,10 @@ class BTLeafNode {
  */
 class BTNonLeafNode {
   public:
+    static const size_t ENTRY_SIZE = sizeof(PageId) + sizeof(int);
+    static const int ENTRY_LIMIT = (PageFile::PAGE_SIZE - (sizeof(int) + sizeof(PageId))) / ENTRY_SIZE;
+
+    BTNonLeafNode();
    /**
     * Insert a (key, pid) pair to the node.
     * Remember that all keys inside a B+tree node should be kept sorted.
@@ -194,6 +201,18 @@ class BTNonLeafNode {
     */
     RC write(PageId pid, PageFile& pf);
 
+    /**
+     * Get the max page id
+     */
+    PageId getMaxPageId();
+
+    /**
+     * Set the max page id
+     */
+    RC setMaxPageId(PageId pid);
+
+    void printNode();
+
   private:
    /**
     * The main memory buffer for loading the content of the disk page 
@@ -207,9 +226,14 @@ class BTNonLeafNode {
     int keyCount;
 
     /**
+     * PageId that stores max page id
+     */
+    PageId maxPageId;
+
+    /**
      * Vector of maps used to store the page ID and key relations of the node
      */
-    std::map<PageId, int> nodeBuckets;
+    std::map<int, PageId> nodeBuckets;
 }; 
 
 #endif /* BTNODE_H */

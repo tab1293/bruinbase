@@ -2,3 +2,6 @@ Name: Thomas Berger
 Email: tab1293@ucla.edu
 
 Standard Part A submission
+
+Part B
+Each page not only stores the node's keys and pointers but it also stores the how many keys are in the node. 
