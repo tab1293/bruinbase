@@ -9,6 +9,7 @@ BTLeafNode::BTLeafNode()
 {
 	keyCount = 0;
 	nextNode = -1;
+	parentPid = -1;
 }
 /*
  * Read the content of the node from the page pid in the PageFile pf.
@@ -21,9 +22,10 @@ RC BTLeafNode::read(PageId pid, const PageFile& pf)
 	RC code = pf.read(pid, buffer);
 	memcpy(&keyCount, buffer, sizeof(int));
 	memcpy(&nextNode, buffer + sizeof(int), sizeof(PageId));
+	memcpy(&parentPid, buffer + sizeof(int) + sizeof(PageId), sizeof(PageId));
 	for(int i=0; i < keyCount; i++) {
 		int key; RecordId rid;
-		char* bufferOffset = (buffer + sizeof(int) + sizeof(PageId)) + i * ENTRY_SIZE;
+		char* bufferOffset = (buffer + sizeof(int) + sizeof(PageId)*2) + i * ENTRY_SIZE;
 		memcpy(&key, bufferOffset, sizeof(int));
 		memcpy(&rid.pid, bufferOffset + sizeof(int), sizeof(PageId));
 		memcpy(&rid.sid, bufferOffset + sizeof(int) + sizeof(PageId), sizeof(int));
@@ -43,10 +45,11 @@ RC BTLeafNode::write(PageId pid, PageFile& pf)
 	memset(buffer, 0, PageFile::PAGE_SIZE);
 	memcpy(buffer, &keyCount, sizeof(int));
 	memcpy(buffer + sizeof(int), &nextNode, sizeof(PageId));
+	memcpy(buffer + sizeof(int) + sizeof(PageId), &parentPid, sizeof(PageId));
 
 	map<int, RecordId>::iterator it; int i;
 	for(it = nodeBuckets.begin(), i=0; it != nodeBuckets.end(); ++it, i++) {
-		char* bufferOffset = (buffer + sizeof(int) + sizeof(PageId)) + i * ENTRY_SIZE;
+		char* bufferOffset = (buffer + sizeof(int) + sizeof(PageId)*2) + i * ENTRY_SIZE;
 		memcpy(bufferOffset, &it->first, sizeof(int));
 		memcpy(bufferOffset + sizeof(int), &it->second.pid, sizeof(PageId));
 		memcpy(bufferOffset + sizeof(int) + sizeof(PageId), &it->second.sid, sizeof(int));
@@ -177,6 +180,18 @@ RC BTLeafNode::setNextNodePtr(PageId pid)
 	return 0; 
 }
 
+PageId BTLeafNode::getParentPid()
+{
+	return parentPid;
+}
+
+RC BTLeafNode::setParentPid(PageId pid)
+{
+	parentPid = pid;
+	return 0;
+}
+
+
 void BTLeafNode::printNode()
 {
 	for(map<int, RecordId>::iterator it = nodeBuckets.begin(); it != nodeBuckets.end(); ++it) {
@@ -187,8 +202,9 @@ void BTLeafNode::printNode()
 
 BTNonLeafNode::BTNonLeafNode()
 {
-	maxPageId = -1;
+	minPageId = -1;
 	keyCount = 0;
+	parentPid = -1;
 }
 
 /*
@@ -201,10 +217,11 @@ RC BTNonLeafNode::read(PageId pid, const PageFile& pf)
 { 
 	RC code = pf.read(pid, buffer);
 	memcpy(&keyCount, buffer, sizeof(int));
-	memcpy(&maxPageId, buffer + sizeof(int), sizeof(PageId));
+	memcpy(&minPageId, buffer + sizeof(int), sizeof(PageId));
+	memcpy(&parentPid, buffer + sizeof(int) + sizeof(PageId), sizeof(PageId));
 	for(int i=0; i < keyCount; i++) {
 		int key; PageId pid;
-		char* bufferOffset = (buffer + sizeof(int) + sizeof(PageId)) + i * ENTRY_SIZE;
+		char* bufferOffset = (buffer + sizeof(int) + sizeof(PageId)*2) + i * ENTRY_SIZE;
 		memcpy(&key, bufferOffset, sizeof(int));
 		memcpy(&pid, bufferOffset + sizeof(int), sizeof(PageId));
 		nodeBuckets[key] = pid;
@@ -222,11 +239,12 @@ RC BTNonLeafNode::write(PageId pid, PageFile& pf)
 { 
 	memset(buffer, 0, PageFile::PAGE_SIZE);
 	memcpy(buffer, &keyCount, sizeof(int));
-	memcpy(buffer + sizeof(int), &maxPageId, sizeof(PageId));
+	memcpy(buffer + sizeof(int), &minPageId, sizeof(PageId));
+	memcpy(buffer + sizeof(int) + sizeof(PageId), &parentPid, sizeof(PageId));
 
 	map<int, PageId>::iterator it; int i;
 	for(it = nodeBuckets.begin(), i=0; it != nodeBuckets.end(); ++it, i++) {
-		char* bufferOffset = (buffer + sizeof(int) + sizeof(PageId)) + i * ENTRY_SIZE;
+		char* bufferOffset = (buffer + sizeof(int) + sizeof(PageId)*2) + i * ENTRY_SIZE;
 		memcpy(bufferOffset, &it->first, sizeof(int));
 		memcpy(bufferOffset + sizeof(int), &it->second, sizeof(PageId));
 	}
@@ -307,13 +325,13 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
 RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
 { 
 	for(map<int, PageId>::iterator it = nodeBuckets.begin(); it != nodeBuckets.end(); ++it) {
-		if(searchKey <= it->first) {
+		if(searchKey >= it->first) {
 			pid = it->second;
 			return 0;
 		}
 	}
 	// If the search key is greater than all the keys in the node, return the 
-	pid = maxPageId;
+	pid = minPageId;
 	return 0; 
 }
 
@@ -326,20 +344,39 @@ RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
  */
 RC BTNonLeafNode::initializeRoot(PageId pid1, int key, PageId pid2)
 { 
-	nodeBuckets[key] = pid1;
-	maxPageId = pid2;
+	minPageId = pid1;
+	nodeBuckets[key] = pid2;
 	return 0; 
 }
 
-PageId BTNonLeafNode::getMaxPageId()
+PageId BTNonLeafNode::getMinPageId()
 {
-	return maxPageId;
+	return minPageId;
 }
 
-RC BTNonLeafNode::setMaxPageId(PageId pid)
+RC BTNonLeafNode::setMinPageId(PageId pid)
 {
-	maxPageId = pid;
+	minPageId = pid;
 	return 0;
+}
+
+PageId BTNonLeafNode::getParentPid()
+{
+	return parentPid;
+}
+
+RC BTNonLeafNode::setParentPid(PageId pid)
+{
+	parentPid = pid;
+	return 0;
+}
+
+void BTNonLeafNode::clear()
+{
+	nodeBuckets.clear();
+	minPageId = -1;
+	keyCount = 0;
+	parentPid = -1;
 }
 
 void BTNonLeafNode::printNode()

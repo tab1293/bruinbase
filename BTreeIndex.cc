@@ -11,13 +11,18 @@
 #include "BTreeNode.h"
 
 using namespace std;
-
+const string BTreeIndex::LEAF_NODE_PAGE_NAME = "leafPage";
+const string BTreeIndex::NON_LEAF_NODE_PAGE_NAME ="nonLeafPage";
 /*
  * BTreeIndex constructor
  */
 BTreeIndex::BTreeIndex()
 {
+	//const string BTreeIndex::LEAF_NODE_PAGE_NAME = "leafPage";
+	//const string BTreeIndex::NON_LEAF_NODE_PAGE_NAME ="nonLeafPage";
     rootPid = -1;
+    nodeCount = -1;
+    treeHeight = 0;
 }
 
 /*
@@ -49,6 +54,106 @@ RC BTreeIndex::close()
  */
 RC BTreeIndex::insert(int key, const RecordId& rid)
 {
+	BTLeafNode leafNode;
+	PageId leafNodePid;
+
+	// If the tree is empty: make a new root which is also a leaf node
+	// Else: Find where the node where the new key should be inserted
+	if(treeHeight == -1) {
+		treeHeight = 0;
+		rootPid = leafNodePid = 0;
+		nodeCount = 1;
+
+	} else {
+		IndexCursor cursor;
+		locate(key, cursor);
+		leafNodePid = cursor.pid;
+		leafNodePf.open(LEAF_NODE_PAGE_NAME, 'r');
+		leafNode.read(leafNodePid, leafNodePf);
+		leafNodePf.close();
+	}
+
+	if(leafNode.insert(key, rid) == RC_NODE_FULL) {
+		// Insert and split the full leaf node and set the next node pointers accordingly
+		BTLeafNode siblingLeafNode; 
+		int leafSiblingKey;
+		
+		leafNode.insertAndSplit(key, rid, siblingLeafNode, leafSiblingKey);
+		PageId leafSiblingPid = increaseNodeCount();
+		siblingLeafNode.setNextNodePtr(leafNode.getNextNodePtr());
+		leafNode.setNextNodePtr(leafSiblingPid);
+		
+		// Create or get parent node page id
+		BTNonLeafNode parentNode;
+		PageId parentPid;
+		if((parentPid = leafNode.getParentPid()) == -1) {
+			parentNode.initializeRoot(leafNodePid, key, leafSiblingPid);
+			treeHeight++;
+			parentPid = increaseNodeCount();
+			leafNode.setParentPid(parentPid);
+			siblingLeafNode.setParentPid(parentPid);
+
+		} else {
+			nonLeafNodePf.open(NON_LEAF_NODE_PAGE_NAME, 'r');
+			parentNode.read(parentPid, nonLeafNodePf);
+			nonLeafNodePf.close();
+		}
+
+		leafNodePf.open(LEAF_NODE_PAGE_NAME, 'w');
+		leafNode.write(leafNodePid, leafNodePf);
+		siblingLeafNode.write(leafSiblingPid, leafNodePf);
+		leafNodePf.close();
+
+		BTNonLeafNode currentNode = parentNode;
+		int currentKey = leafSiblingKey;
+		int currentPid = leafSiblingPid;
+
+		while(currentNode.insert(currentKey, currentPid) == RC_NODE_FULL) {
+			BTNonLeafNode parentSiblingNode; 
+			int midKey;
+			currentNode.insertAndSplit(currentKey, currentPid, parentSiblingNode, midKey);
+			PageId parentSiblingPid = increaseNodeCount();
+
+			PageId parentPid = currentNode.getParentPid();
+			if(parentPid == -1) {
+				BTNonLeafNode newRoot;
+				newRoot.initializeRoot(currentPid, currentKey, parentSiblingPid);
+				PageId newRootPid = increaseNodeCount();
+				currentNode.setParentPid(newRootPid);
+				parentSiblingNode.setParentPid(newRootPid);
+
+				nonLeafNodePf.open(NON_LEAF_NODE_PAGE_NAME, 'w');
+				newRoot.write(newRootPid, nonLeafNodePf);
+				parentSiblingNode.write(parentSiblingPid, nonLeafNodePf);
+				nonLeafNodePf.close();
+				treeHeight++;
+				break;
+
+			} else {
+				parentSiblingNode.setMinPageId(currentPid);
+				nonLeafNodePf.open(NON_LEAF_NODE_PAGE_NAME, 'w');
+				currentNode.write(currentPid, nonLeafNodePf);
+				parentSiblingNode.write(parentSiblingPid, nonLeafNodePf);
+				nonLeafNodePf.close();
+				currentNode.clear();
+				nonLeafNodePf.open(NON_LEAF_NODE_PAGE_NAME, 'r');
+				currentNode.read(parentPid, nonLeafNodePf);
+				nonLeafNodePf.close();
+				currentKey = midKey;
+				currentPid = parentSiblingPid;
+			}
+
+		}
+
+		nonLeafNodePf.open(NON_LEAF_NODE_PAGE_NAME, 'w');
+		currentNode.write(currentPid, nonLeafNodePf);
+		nonLeafNodePf.close();
+
+	}
+
+	leafNodePf.open(LEAF_NODE_PAGE_NAME, 'r');
+	leafNode.write(leafNodePid, leafNodePf);
+	leafNodePf.close();
     return 0;
 }
 
@@ -73,6 +178,24 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
  */
 RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 {
+	int currentLevel = 0;
+	PageId nodePid = rootPid;
+		
+	while(currentLevel != treeHeight) {
+		BTNonLeafNode internalNode;
+		internalNode.read(nodePid, pf);
+		internalNode.locateChildPtr(searchKey, nodePid);
+		currentLevel++;
+	}
+
+	BTLeafNode leafNode;
+	int eid;
+
+	leafNode.read(nodePid, pf);
+	leafNode.locate(searchKey, eid);
+	
+	cursor.pid = nodePid;
+	cursor.eid = eid;
     return 0;
 }
 
@@ -87,4 +210,10 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 {
     return 0;
+}
+
+int BTreeIndex::increaseNodeCount()
+{
+	nodeCount++;
+	return nodeCount;
 }

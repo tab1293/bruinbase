@@ -20,7 +20,7 @@
 class BTLeafNode {
   public:
     static const size_t ENTRY_SIZE = sizeof(RecordId) + sizeof(int);
-    static const int ENTRY_LIMIT = (PageFile::PAGE_SIZE - (sizeof(int) + sizeof(PageId))) / ENTRY_SIZE;
+    static const int ENTRY_LIMIT = (PageFile::PAGE_SIZE - (sizeof(int) + sizeof(PageId)*2)) / ENTRY_SIZE;
 
     BTLeafNode();
    /**
@@ -102,6 +102,10 @@ class BTLeafNode {
     */
     RC write(PageId pid, PageFile& pf);
 
+    PageId getParentPid();
+
+    RC setParentPid(PageId pid);
+
     void printNode();
 
   private:
@@ -125,6 +129,11 @@ class BTLeafNode {
      * Pointer to next node
      */
     PageId nextNode;
+
+    /**
+     * PageId of the parent node, -1 if no parent
+     */
+    PageId parentPid;
 }; 
 
 
@@ -134,7 +143,7 @@ class BTLeafNode {
 class BTNonLeafNode {
   public:
     static const size_t ENTRY_SIZE = sizeof(PageId) + sizeof(int);
-    static const int ENTRY_LIMIT = (PageFile::PAGE_SIZE - (sizeof(int) + sizeof(PageId))) / ENTRY_SIZE;
+    static const int ENTRY_LIMIT = (PageFile::PAGE_SIZE - (sizeof(int) + sizeof(PageId)*2)) / ENTRY_SIZE;
 
     BTNonLeafNode();
    /**
@@ -202,14 +211,20 @@ class BTNonLeafNode {
     RC write(PageId pid, PageFile& pf);
 
     /**
-     * Get the max page id
+     * Get the min page id
      */
-    PageId getMaxPageId();
+    PageId getMinPageId();
 
     /**
      * Set the max page id
      */
-    RC setMaxPageId(PageId pid);
+    RC setMinPageId(PageId pid);
+
+    PageId getParentPid();
+
+    RC setParentPid(PageId pid);
+
+    void clear();
 
     void printNode();
 
@@ -226,14 +241,19 @@ class BTNonLeafNode {
     int keyCount;
 
     /**
-     * PageId that stores max page id
+     * PageId that stores min page id
      */
-    PageId maxPageId;
+    PageId minPageId;
 
     /**
      * Vector of maps used to store the page ID and key relations of the node
      */
     std::map<int, PageId> nodeBuckets;
+
+    /**
+     * PageId of the parent node, -1 if no parent
+     */
+    PageId parentPid;
 }; 
 
 #endif /* BTNODE_H */

@@ -10,6 +10,7 @@
 #ifndef BTREEINDEX_H
 #define BTREEINDEX_H
 
+#include <string>
 #include "Bruinbase.h"
 #include "PageFile.h"
 #include "RecordFile.h"
@@ -89,9 +90,16 @@ class BTreeIndex {
    * @return error code. 0 if no error
    */
   RC readForward(IndexCursor& cursor, int& key, RecordId& rid);
+
+  PageId increaseNodeCount();
   
  private:
   PageFile pf;         /// the PageFile used to store the actual b+tree in disk
+  PageFile leafNodePf;
+  PageFile nonLeafNodePf;
+
+  static const std::string LEAF_NODE_PAGE_NAME;
+  static const std::string NON_LEAF_NODE_PAGE_NAME;
 
   PageId   rootPid;    /// the PageId of the root node
   int      treeHeight; /// the height of the tree
@@ -99,6 +107,8 @@ class BTreeIndex {
   /// this class is destructed. Make sure to store the values of the two 
   /// variables in disk, so that they can be reconstructed when the index
   /// is opened again later.
+  
+  PageId nodeCount;
 };
 
 #endif /* BTREEINDEX_H */

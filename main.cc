@@ -22,6 +22,7 @@ int main()
   		
  //  	BTLeafNode btLeafNode;
  //  	RecordId rid;
+ //  	//cout << btLeafNode.ENTRY_LIMIT << endl;
  //  	for(int i=0; i<84; i++) {
  //  		rid.pid = 0;
  //  		rid.sid = i*3;
@@ -61,31 +62,34 @@ int main()
 	// btLeafNode.printNode();
 	// cout << btLeafNode.getNextNodePtr() << endl;
 	// cout << btLeafNode.getKeyCount() << endl;
+	// cout << btLeafNode.getParentPid() << endl;
 	
- 	BTNonLeafNode btNonLeafNode;
-  	PageId pid;
-  	for(int i=0; i<127; i++) {
-  		btNonLeafNode.insert(i, 0);
-  	}
-  	BTNonLeafNode btNonLeafSibling;
-  	int midKey;
-  	btNonLeafNode.insertAndSplit(127, 0, btNonLeafSibling, midKey);
-  	cout << "Entry limit: " << btNonLeafNode.ENTRY_LIMIT << endl;
-  	btNonLeafNode.printNode();
-  	cout << "Sibling node: " << endl;
-  	btNonLeafSibling.printNode();
-  	cout << btNonLeafNode.getKeyCount() << endl;
-  	cout << midKey << endl;
+ // 	BTNonLeafNode btNonLeafNode;
+ //  	PageId pid;
+ //  	for(int i=0; i<126; i++) {
+ //  		btNonLeafNode.insert(i, 0);
+ //  	}
+ //  	BTNonLeafNode btNonLeafSibling;
+ //  	int midKey;
+ //  	btNonLeafNode.insertAndSplit(126, 0, btNonLeafSibling, midKey);
+ //  	cout << "Entry limit: " << btNonLeafNode.ENTRY_LIMIT << endl;
+ //  	btNonLeafNode.printNode();
+ //  	cout << "Sibling node: " << endl;
+ //  	btNonLeafSibling.printNode();
+ //  	cout << btNonLeafNode.getKeyCount() << endl;
+ //  	cout << midKey << endl;
+ //  	cout << btNonLeafNode.getParentPid() << endl;
 
-  	PageFile pf = PageFile("nonleafpage", 'w');
-	btNonLeafNode.write(0, pf);
+ //  	PageFile pf = PageFile("nonleafpage", 'w');
+	// btNonLeafNode.write(0, pf);
 	
 	// BTNonLeafNode btNonLeafNode;
 	// PageFile pf = PageFile("nonleafpage", 'r');
 	// btNonLeafNode.read(0, pf);
 	// btNonLeafNode.printNode();
-	// cout << btNonLeafNode.getMaxPageId() << endl;
+	// cout << btNonLeafNode.getMinPageId() << endl;
 	// cout << btNonLeafNode.getKeyCount() << endl;
+	// cout << btNonLeafNode.getParentPid() << endl;
 
   	return 0;
 }
