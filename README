@@ -5,3 +5,6 @@ Standard Part A submission
 
 Part B
 Each page not only stores the node's keys and pointers but it also stores the how many keys are in the node. 
+
+Part C
+First page in BTreeIndex's page file stores information about the tree while the following pages store the tree's nodes. 

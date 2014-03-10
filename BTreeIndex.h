@@ -14,6 +14,7 @@
 #include "Bruinbase.h"
 #include "PageFile.h"
 #include "RecordFile.h"
+#include "BTreeNode.h"
              
 /**
  * The data structure to point to a particular entry at a b+tree leaf node.
@@ -91,15 +92,33 @@ class BTreeIndex {
    */
   RC readForward(IndexCursor& cursor, int& key, RecordId& rid);
 
-  PageId increaseNodeCount();
+
+  RC insertSiblingLeafNode(BTLeafNode& leafNode, int key, RecordId rid, BTLeafNode& siblingLeafNode, PageId& siblingLeafPid, int& siblingLeafKey);
   
+  RC insertSiblingNonLeafNode(BTNonLeafNode& nonLeafNode, int key, PageId pid, BTNonLeafNode& siblingNonLeafNode, PageId& siblingLeafPid, int& midKey, PageId& midPid);
+
+  RC insertNewRootFromLeaf(BTLeafNode& leafNode, PageId leafNodePid, BTLeafNode& siblingLeafNode, PageId siblingLeafPid, int siblingLeafKey, BTNonLeafNode& rootNode, PageId& rootNodePid);
+
+  RC insertNewRootFromNonLeaf(BTNonLeafNode& nonLeafNode, PageId nonLeafPid, BTNonLeafNode& siblingNonLeafNode, PageId siblingNonLeafPid, int midKey, BTNonLeafNode& rootNode, PageId& rootNodePid);
+
+  RC readLeafNode(BTLeafNode& leafNode, PageId leafPid);
+
+  RC writeLeafNode(BTLeafNode leafNode, PageId leafNodePid);
+
+  RC readNonLeafNode(BTNonLeafNode& nonLeafNode, PageId nonLeafPid);
+
+  RC writeNonLeafNode(BTNonLeafNode nonLeafNode, PageId nonLeafPid);
+
+  PageId increaseNodeCount();
+
+  void printTree();
+
  private:
   PageFile pf;         /// the PageFile used to store the actual b+tree in disk
-  PageFile leafNodePf;
-  PageFile nonLeafNodePf;
 
-  static const std::string LEAF_NODE_PAGE_NAME;
-  static const std::string NON_LEAF_NODE_PAGE_NAME;
+  std::string indexFilename;
+  // static const std::string LEAF_NODE_PAGE_NAME;
+  // static const std::string NON_LEAF_NODE_PAGE_NAME;
 
   PageId   rootPid;    /// the PageId of the root node
   int      treeHeight; /// the height of the tree

@@ -12,6 +12,7 @@
 #include <fstream>
 #include "Bruinbase.h"
 #include "SqlEngine.h"
+#include "BTreeIndex.h"
 
 using namespace std;
 
@@ -137,15 +138,33 @@ RC SqlEngine::load(const string& table, const string& loadfile, bool index)
     const string recordFilename = table + ".tbl";
     RecordFile* rf = new RecordFile(recordFilename, 'w');
   
-    // Read loadfile line by line and insert it into the record file.
-    string line;
-    while(getline(loadFileStream, line)) {
-      int key; string value; RecordId rid;
-      parseLoadLine(line, key, value);
-      rf->append(key, value, rid);
-    }
-    rf->close();
-    return 0;
+
+    // if(index) {
+    //   const string indexFilename = table + ".idx";
+    //   BTreeIndex btreeIndex;
+    //   btreeIndex.open(indexFilename, 'r');
+
+    //   string line;
+    //   while(getline(loadFileStream, line)) {
+    //     int key; string value; RecordId rid;
+    //     parseLoadLine(line, key, value);
+    //     rf->append(key, value, rid);
+    //     btreeIndex.insert(key, rid);
+    //   }
+    //   rf->close();
+    //   btreeIndex.printTree();
+    //   btreeIndex.close();
+    //   return 0;
+    // } else {
+      string line;
+      while(getline(loadFileStream, line)) {
+        int key; string value; RecordId rid;
+        parseLoadLine(line, key, value);
+        rf->append(key, value, rid);
+      }
+      rf->close();
+      return 0;
+    //}
 
   } else {
     fprintf(stderr, "Error trying to open filename for loading: '%s' \n", loadfileName);

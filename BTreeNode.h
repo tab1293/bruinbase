@@ -13,6 +13,7 @@
 #include "RecordFile.h"
 #include "PageFile.h"
 #include <map>
+#include <vector>
 
 /**
  * BTLeafNode: The class representing a B+tree leaf node.
@@ -167,7 +168,7 @@ class BTNonLeafNode {
     * @param midKey[OUT] the key in the middle after the split. This key should be inserted to the parent node.
     * @return 0 if successful. Return an error code if there is an error.
     */
-    RC insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, int& midKey);
+    RC insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, int& midKey, PageId& midPid);
 
    /**
     * Given the searchKey, find the child-node pointer to follow and
@@ -227,6 +228,8 @@ class BTNonLeafNode {
     void clear();
 
     void printNode();
+
+    std::vector<PageId> getAllPids();
 
   private:
    /**

@@ -12,12 +12,13 @@
 
 #include <iostream>
 #include "BTreeNode.h"
+#include "BTreeIndex.h"
 
 using namespace std;
 int main()
 {
   // run the SQL engine taking user commands from standard input (console).
-  //SqlEngine::run(stdin);
+  SqlEngine::run(stdin);
   
   		
  //  	BTLeafNode btLeafNode;
@@ -64,7 +65,7 @@ int main()
 	// cout << btLeafNode.getKeyCount() << endl;
 	// cout << btLeafNode.getParentPid() << endl;
 	
- // 	BTNonLeafNode btNonLeafNode;
+ // 	BTNonLeafNode btNonLeafNohde;
  //  	PageId pid;
  //  	for(int i=0; i<126; i++) {
  //  		btNonLeafNode.insert(i, 0);
@@ -84,12 +85,51 @@ int main()
 	// btNonLeafNode.write(0, pf);
 	
 	// BTNonLeafNode btNonLeafNode;
-	// PageFile pf = PageFile("nonleafpage", 'r');
-	// btNonLeafNode.read(0, pf);
+	// PageFile pf = PageFile("btreePage", 'r');
+	// btNonLeafNode.read(3, pf);
 	// btNonLeafNode.printNode();
-	// cout << btNonLeafNode.getMinPageId() << endl;
-	// cout << btNonLeafNode.getKeyCount() << endl;
-	// cout << btNonLeafNode.getParentPid() << endl;
+	
+
+	// BTNonLeafNode parentNode;
+	// BTreeIndex btreeIndex;
+	// btreeIndex.readNonLeafNode(parentNode, 3);
+	// parentNode.printNode();
+
+	// 
+	// cout << BTLeafNode::ENTRY_SIZE;
+	//cout << BTNonLeafNode::ENTRY_LIMIT;
+	
+	// RecordId rid;
+	// BTreeIndex btreeIndex;
+	// btreeIndex.open("test", 'r');
+	// for(int i=0; i<15; i++) {
+	// 	rid.pid = 0;
+	// 	rid.sid = i;
+	// 	btreeIndex.insert(i, rid);	
+	// }
+
+	// btreeIndex.close();
+
+	// btreeIndex.printTree();
+
+
+	// BTLeafNode leafNode;
+	// RecordId rid;
+	// for(int i=0; i<5; i++) {
+	// 	rid.pid=0;
+	// 	rid.sid=i;
+	// 	leafNode.insert(10, rid);
+	// }
+	// leafNode.printNode();
+
+
+	// BTLeafNode btLeafNode;
+	// PageFile pf = PageFile("leafPage", 'r');
+	// btLeafNode.read(0, pf);
+	// btLeafNode.printNode();
+	// cout << btLeafNode.getNextNodePtr() << endl;
+	// cout << btLeafNode.getKeyCount() << endl;
+	// cout << btLeafNode.getParentPid() << endl;
 
   	return 0;
 }

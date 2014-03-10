@@ -7,22 +7,21 @@
  * @date 3/24/2008
  */
  
+#include <iostream> 
 #include "BTreeIndex.h"
 #include "BTreeNode.h"
 
+
 using namespace std;
-const string BTreeIndex::LEAF_NODE_PAGE_NAME = "leafPage";
-const string BTreeIndex::NON_LEAF_NODE_PAGE_NAME ="nonLeafPage";
+
 /*
  * BTreeIndex constructor
  */
 BTreeIndex::BTreeIndex()
 {
-	//const string BTreeIndex::LEAF_NODE_PAGE_NAME = "leafPage";
-	//const string BTreeIndex::NON_LEAF_NODE_PAGE_NAME ="nonLeafPage";
     rootPid = -1;
     nodeCount = -1;
-    treeHeight = 0;
+    treeHeight = -1;
 }
 
 /*
@@ -34,6 +33,15 @@ BTreeIndex::BTreeIndex()
  */
 RC BTreeIndex::open(const string& indexname, char mode)
 {
+	indexFilename = indexname + ".idx";
+	char buffer[PageFile::PAGE_SIZE];
+	if((pf.open(indexFilename, 'r')) == 0) {
+		pf.read(0, buffer);
+		memcpy(&rootPid, buffer, sizeof(PageId));
+		memcpy(&treeHeight, buffer + sizeof(PageId), sizeof(int));
+		memcpy(&nodeCount, buffer + sizeof(PageId) + sizeof(int), sizeof(PageId));
+		pf.close();
+	}
     return 0;
 }
 
@@ -43,6 +51,14 @@ RC BTreeIndex::open(const string& indexname, char mode)
  */
 RC BTreeIndex::close()
 {
+	char buffer[PageFile::PAGE_SIZE];
+	memset(buffer, 0, PageFile::PAGE_SIZE);
+	memcpy(buffer, &rootPid, sizeof(PageId));
+	memcpy(buffer + sizeof(PageId), &treeHeight, sizeof(int));
+	memcpy(buffer + sizeof(PageId) + sizeof(int), &nodeCount, sizeof(PageId));
+	pf.open(indexFilename, 'w');
+	pf.write(0, buffer);
+	pf.close();
     return 0;
 }
 
@@ -61,100 +77,180 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
 	// Else: Find where the node where the new key should be inserted
 	if(treeHeight == -1) {
 		treeHeight = 0;
-		rootPid = leafNodePid = 0;
+		rootPid = leafNodePid = 1;
 		nodeCount = 1;
+
 
 	} else {
 		IndexCursor cursor;
 		locate(key, cursor);
 		leafNodePid = cursor.pid;
-		leafNodePf.open(LEAF_NODE_PAGE_NAME, 'r');
-		leafNode.read(leafNodePid, leafNodePf);
-		leafNodePf.close();
+		readLeafNode(leafNode, leafNodePid);
 	}
 
 	if(leafNode.insert(key, rid) == RC_NODE_FULL) {
+		
 		// Insert and split the full leaf node and set the next node pointers accordingly
 		BTLeafNode siblingLeafNode; 
+		PageId siblingLeafPid;
 		int leafSiblingKey;
-		
-		leafNode.insertAndSplit(key, rid, siblingLeafNode, leafSiblingKey);
-		PageId leafSiblingPid = increaseNodeCount();
-		siblingLeafNode.setNextNodePtr(leafNode.getNextNodePtr());
-		leafNode.setNextNodePtr(leafSiblingPid);
-		
+
+		insertSiblingLeafNode(leafNode, key, rid, siblingLeafNode, siblingLeafPid, leafSiblingKey);
+
 		// Create or get parent node page id
 		BTNonLeafNode parentNode;
 		PageId parentPid;
 		if((parentPid = leafNode.getParentPid()) == -1) {
-			parentNode.initializeRoot(leafNodePid, key, leafSiblingPid);
-			treeHeight++;
-			parentPid = increaseNodeCount();
-			leafNode.setParentPid(parentPid);
-			siblingLeafNode.setParentPid(parentPid);
+			insertNewRootFromLeaf(leafNode, leafNodePid, siblingLeafNode, siblingLeafPid, leafSiblingKey, parentNode, parentPid);
+			return 0;
 
 		} else {
-			nonLeafNodePf.open(NON_LEAF_NODE_PAGE_NAME, 'r');
-			parentNode.read(parentPid, nonLeafNodePf);
-			nonLeafNodePf.close();
+			readNonLeafNode(parentNode, parentPid);
 		}
 
-		leafNodePf.open(LEAF_NODE_PAGE_NAME, 'w');
-		leafNode.write(leafNodePid, leafNodePf);
-		siblingLeafNode.write(leafSiblingPid, leafNodePf);
-		leafNodePf.close();
-
+		leafNode.setParentPid(parentPid);
+		siblingLeafNode.setParentPid(parentPid);
+		writeLeafNode(leafNode, leafNodePid);
+		writeLeafNode(siblingLeafNode, siblingLeafPid);
+	
 		BTNonLeafNode currentNode = parentNode;
+		PageId currentPid = parentPid;
 		int currentKey = leafSiblingKey;
-		int currentPid = leafSiblingPid;
 
-		while(currentNode.insert(currentKey, currentPid) == RC_NODE_FULL) {
+		PageId currentChildPid = siblingLeafPid;
+
+		int heightUp = 0;
+		while(currentNode.insert(currentKey, currentChildPid) == RC_NODE_FULL) {
 			BTNonLeafNode parentSiblingNode; 
+			PageId parentSiblingPid;
 			int midKey;
-			currentNode.insertAndSplit(currentKey, currentPid, parentSiblingNode, midKey);
-			PageId parentSiblingPid = increaseNodeCount();
+			PageId midPid;
 
-			PageId parentPid = currentNode.getParentPid();
-			if(parentPid == -1) {
+			insertSiblingNonLeafNode(currentNode, currentKey, currentChildPid, parentSiblingNode, parentSiblingPid, midKey, midPid);
+
+			if(heightUp == 0) {
+				siblingLeafNode.setParentPid(parentSiblingPid);
+				writeLeafNode(siblingLeafNode, siblingLeafPid);
+				BTLeafNode minLeafNode;
+				readLeafNode(minLeafNode, midPid);
+				minLeafNode.setParentPid(parentSiblingPid);
+				writeLeafNode(minLeafNode, midPid);
+			} else {
+				BTNonLeafNode currentChild;
+				readNonLeafNode(currentChild, currentChildPid);
+				currentChild.setParentPid(parentSiblingPid);
+				writeNonLeafNode(currentChild, currentChildPid);
+				BTNonLeafNode minNonLeafNode;
+				readNonLeafNode(minNonLeafNode, midPid);
+				minNonLeafNode.setParentPid(parentSiblingPid);
+				writeNonLeafNode(minNonLeafNode, midPid);
+			}
+			
+			PageId newParentPid = currentNode.getParentPid();
+			if(newParentPid == -1) {
 				BTNonLeafNode newRoot;
-				newRoot.initializeRoot(currentPid, currentKey, parentSiblingPid);
-				PageId newRootPid = increaseNodeCount();
-				currentNode.setParentPid(newRootPid);
-				parentSiblingNode.setParentPid(newRootPid);
-
-				nonLeafNodePf.open(NON_LEAF_NODE_PAGE_NAME, 'w');
-				newRoot.write(newRootPid, nonLeafNodePf);
-				parentSiblingNode.write(parentSiblingPid, nonLeafNodePf);
-				nonLeafNodePf.close();
-				treeHeight++;
+				PageId rootNodePid;
+				insertNewRootFromNonLeaf(currentNode, currentPid, parentSiblingNode, parentSiblingPid, midKey, newRoot, rootNodePid);
 				break;
 
 			} else {
-				parentSiblingNode.setMinPageId(currentPid);
-				nonLeafNodePf.open(NON_LEAF_NODE_PAGE_NAME, 'w');
-				currentNode.write(currentPid, nonLeafNodePf);
-				parentSiblingNode.write(parentSiblingPid, nonLeafNodePf);
-				nonLeafNodePf.close();
-				currentNode.clear();
-				nonLeafNodePf.open(NON_LEAF_NODE_PAGE_NAME, 'r');
-				currentNode.read(parentPid, nonLeafNodePf);
-				nonLeafNodePf.close();
+				heightUp++;
+				BTNonLeafNode newParentNode;
+				readNonLeafNode(newParentNode, newParentPid);
+				writeNonLeafNode(currentNode, currentPid);
+				parentSiblingNode.setParentPid(newParentPid);
+				writeNonLeafNode(parentSiblingNode, parentSiblingPid);
 				currentKey = midKey;
-				currentPid = parentSiblingPid;
+				currentNode = newParentNode;
+				currentPid = newParentPid;
+				currentChildPid = parentSiblingPid;
+				writeNonLeafNode(parentSiblingNode, parentSiblingPid);
+
 			}
 
 		}
+		writeNonLeafNode(currentNode, currentPid);
 
-		nonLeafNodePf.open(NON_LEAF_NODE_PAGE_NAME, 'w');
-		currentNode.write(currentPid, nonLeafNodePf);
-		nonLeafNodePf.close();
+	} else {
+		writeLeafNode(leafNode, leafNodePid);
+    	return 0;
+    }
+}
 
-	}
+RC BTreeIndex::insertSiblingLeafNode(BTLeafNode& leafNode, int key, RecordId rid, BTLeafNode& siblingLeafNode, PageId& siblingLeafPid, int& siblingLeafKey)
+{
+	leafNode.insertAndSplit(key, rid, siblingLeafNode, siblingLeafKey);
+	siblingLeafPid = increaseNodeCount();
+	siblingLeafNode.setNextNodePtr(leafNode.getNextNodePtr());
+	leafNode.setNextNodePtr(siblingLeafPid);
+	return 0;
+}
 
-	leafNodePf.open(LEAF_NODE_PAGE_NAME, 'r');
-	leafNode.write(leafNodePid, leafNodePf);
-	leafNodePf.close();
-    return 0;
+RC BTreeIndex::insertSiblingNonLeafNode(BTNonLeafNode& nonLeafNode, int key, PageId pid, BTNonLeafNode& siblingNonLeafNode, PageId& siblingLeafPid, int& midKey, PageId& midPid)
+{
+	nonLeafNode.insertAndSplit(key, pid, siblingNonLeafNode, midKey, midPid);
+	siblingLeafPid = increaseNodeCount();
+	siblingNonLeafNode.setMinPageId(midPid);
+}
+
+RC BTreeIndex::insertNewRootFromLeaf(BTLeafNode& leafNode, PageId leafNodePid, BTLeafNode& siblingLeafNode, PageId siblingLeafPid, int siblingLeafKey, BTNonLeafNode& rootNode, PageId& rootNodePid) 
+{
+	rootNode.initializeRoot(leafNodePid, siblingLeafKey, siblingLeafPid);
+	rootNodePid = increaseNodeCount();
+	treeHeight++;
+	leafNode.setParentPid(rootNodePid);
+	siblingLeafNode.setParentPid(rootNodePid);
+	rootPid = rootNodePid;
+	writeLeafNode(leafNode, leafNodePid);
+	writeLeafNode(siblingLeafNode, siblingLeafPid);
+	writeNonLeafNode(rootNode, rootPid);
+	
+	return 0;
+}
+
+RC BTreeIndex::insertNewRootFromNonLeaf(BTNonLeafNode& nonLeafNode, PageId nonLeafPid, BTNonLeafNode& siblingNonLeafNode, PageId siblingNonLeafPid, int midKey, BTNonLeafNode& rootNode, PageId& rootNodePid)
+{
+	rootNode.initializeRoot(nonLeafPid, midKey, siblingNonLeafPid);
+	rootNodePid = increaseNodeCount();
+	treeHeight++;
+	nonLeafNode.setParentPid(rootNodePid);
+	siblingNonLeafNode.setParentPid(rootNodePid);
+	rootPid = rootNodePid;
+	writeNonLeafNode(rootNode, rootPid);
+	writeNonLeafNode(nonLeafNode, nonLeafPid);
+	writeNonLeafNode(siblingNonLeafNode, siblingNonLeafPid);
+}
+
+RC BTreeIndex::readLeafNode(BTLeafNode& leafNode, PageId leafPid)
+{
+	pf.open(indexFilename, 'r');
+	leafNode.read(leafPid, pf);
+	pf.close();
+	return 0;
+}
+
+RC BTreeIndex::writeLeafNode(BTLeafNode leafNode, PageId leafNodePid)
+{
+	pf.open(indexFilename, 'w');
+	leafNode.write(leafNodePid, pf);
+	pf.close();
+	return 0;
+}
+
+RC BTreeIndex::readNonLeafNode(BTNonLeafNode& nonLeafNode, PageId nonLeafPid)
+{
+	pf.open(indexFilename, 'r');
+	nonLeafNode.read(nonLeafPid, pf);
+	pf.close();
+	return 0;
+}
+
+RC BTreeIndex::writeNonLeafNode(BTNonLeafNode nonLeafNode, PageId nonLeafPid)
+{
+	pf.open(indexFilename, 'w');
+	nonLeafNode.write(nonLeafPid, pf);
+	pf.close();
+	return 0;
 }
 
 /*
@@ -183,15 +279,14 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 		
 	while(currentLevel != treeHeight) {
 		BTNonLeafNode internalNode;
-		internalNode.read(nodePid, pf);
+		readNonLeafNode(internalNode, nodePid);
 		internalNode.locateChildPtr(searchKey, nodePid);
 		currentLevel++;
 	}
 
 	BTLeafNode leafNode;
 	int eid;
-
-	leafNode.read(nodePid, pf);
+	readLeafNode(leafNode, nodePid);
 	leafNode.locate(searchKey, eid);
 	
 	cursor.pid = nodePid;
@@ -209,6 +304,18 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
  */
 RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 {
+	BTLeafNode leafNode;
+	PageId leafNodePid = cursor.pid;
+	readLeafNode(leafNode, leafNodePid);
+	leafNode.readEntry(cursor.eid, key, rid);
+	cursor.eid++;
+	
+	int testKey;
+	RecordId testRid;
+	if(leafNode.readEntry(cursor.eid, testKey, testRid) == RC_NO_SUCH_RECORD) {
+		cursor.eid = 0;
+		cursor.pid = leafNode.getNextNodePtr();
+	}
     return 0;
 }
 
@@ -216,4 +323,78 @@ int BTreeIndex::increaseNodeCount()
 {
 	nodeCount++;
 	return nodeCount;
+}
+
+
+void BTreeIndex::printTree()
+{
+	map<int, map<PageId, BTNonLeafNode> > nonLeafLevels;
+	int currentLevel = 0;
+	BTNonLeafNode root;
+	readNonLeafNode(root, rootPid);
+	map<PageId, BTNonLeafNode>  rootLevel;
+	rootLevel[rootPid] = root;
+	nonLeafLevels[currentLevel] = rootLevel;
+
+	map<PageId, BTNonLeafNode> currentLevelNodes;
+	currentLevelNodes[rootPid] = root;
+	while(currentLevel + 1 < treeHeight)
+	{
+		vector<PageId> nextLevelPids;
+		for (map<PageId, BTNonLeafNode>::iterator it = currentLevelNodes.begin() ; it != currentLevelNodes.end(); ++it) {
+			BTNonLeafNode currentNode = it->second;
+			vector<PageId> currentNodePids = currentNode.getAllPids();
+			for(vector<PageId>::iterator it = currentNodePids.begin() ; it != currentNodePids.end(); ++it) {
+				nextLevelPids.push_back(*it);
+			}
+		}
+		
+		map<PageId, BTNonLeafNode> nextLevelNodes;
+		for (vector<PageId>::iterator it = nextLevelPids.begin() ; it != nextLevelPids.end(); ++it) {
+			BTNonLeafNode nextLevelNode;
+			PageId nextLevelPid = *it;
+			readNonLeafNode(nextLevelNode, nextLevelPid);
+			nextLevelNodes[nextLevelPid] = nextLevelNode;
+		}
+		currentLevel++;
+		nonLeafLevels[currentLevel] = nextLevelNodes;
+		currentLevelNodes = nextLevelNodes;
+	}
+
+	vector<PageId> leafLevelPids;
+	for (map<PageId, BTNonLeafNode>::iterator it = currentLevelNodes.begin() ; it != currentLevelNodes.end(); ++it) {
+		BTNonLeafNode currentNode = it->second;
+		vector<PageId> currentNodePids = currentNode.getAllPids();
+		for(vector<PageId>::iterator it = currentNodePids.begin() ; it != currentNodePids.end(); ++it) {
+			leafLevelPids.push_back(*it);
+		}
+	}
+
+	map<PageId, BTLeafNode> leafLevelNodes;
+	for (vector<PageId>::iterator it = leafLevelPids.begin() ; it != leafLevelPids.end(); ++it) {
+		BTLeafNode leafLevelNode;
+		PageId leafLevelPid = *it;
+		readLeafNode(leafLevelNode, leafLevelPid);
+		leafLevelNodes[leafLevelPid] = leafLevelNode;
+	}
+
+	// Print non leaf level nodes
+	for (map<int, map<PageId, BTNonLeafNode> >::iterator it = nonLeafLevels.begin() ; it != nonLeafLevels.end(); ++it) {
+		cout << "Tree level: " << it->first << endl;
+		map<PageId, BTNonLeafNode> nodes = it->second;
+		for(map<PageId, BTNonLeafNode>::iterator it = nodes.begin() ; it != nodes.end(); ++it) {
+			cout << "Node PID: " <<  it->first << endl;
+			BTNonLeafNode node = it->second;
+			node.printNode();
+		}
+	}
+
+	// Print leaf level nodes
+	cout << "Leaf level: " << endl;
+	for(map<PageId, BTLeafNode>::iterator it = leafLevelNodes.begin() ; it != leafLevelNodes.end(); ++it) {
+			cout << "Node PID: " << it->first << endl;
+			BTLeafNode node = it->second;
+			node.printNode();
+	}
+
 }

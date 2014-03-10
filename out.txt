@@ -1,0 +1,106 @@
+Tree level: 0
+Node PID: 22
+Parent Node Page ID: -1
+Min Page ID: 8
+Node Key: 9     Page ID: 21
+
+Tree level: 1
+Node PID: 8
+Parent Node Page ID: 22
+Min Page ID: 3
+Node Key: 3     Page ID: 7
+Node Key: 6     Page ID: 12
+
+Node PID: 21
+Parent Node Page ID: 22
+Min Page ID: 16
+Node Key: 12     Page ID: 20
+
+Tree level: 2
+Node PID: 3
+Parent Node Page ID: 8
+Min Page ID: 1
+Node Key: 1     Page ID: 2
+Node Key: 2     Page ID: 4
+
+Node PID: 7
+Parent Node Page ID: 8
+Min Page ID: 5
+Node Key: 4     Page ID: 6
+Node Key: 5     Page ID: 9
+
+Node PID: 12
+Parent Node Page ID: 8
+Min Page ID: 10
+Node Key: 7     Page ID: 11
+Node Key: 8     Page ID: 13
+
+Node PID: 16
+Parent Node Page ID: 21
+Min Page ID: 14
+Node Key: 10     Page ID: 15
+Node Key: 11     Page ID: 17
+
+Node PID: 20
+Parent Node Page ID: 21
+Min Page ID: 18
+Node Key: 13     Page ID: 19
+
+Leaf level: 
+Node PID: 1
+Key: 0     Page ID: 0     Slot ID: 0
+Parent Node Page ID: 3
+
+Node PID: 2
+Key: 1     Page ID: 0     Slot ID: 1
+Parent Node Page ID: 3
+
+Node PID: 4
+Key: 2     Page ID: 0     Slot ID: 2
+Parent Node Page ID: 3
+
+Node PID: 5
+Key: 3     Page ID: 0     Slot ID: 3
+Parent Node Page ID: 7
+
+Node PID: 6
+Key: 4     Page ID: 0     Slot ID: 4
+Parent Node Page ID: 7
+
+Node PID: 9
+Key: 5     Page ID: 0     Slot ID: 5
+Parent Node Page ID: 7
+
+Node PID: 10
+Key: 6     Page ID: 0     Slot ID: 6
+Parent Node Page ID: 12
+
+Node PID: 11
+Key: 7     Page ID: 0     Slot ID: 7
+Parent Node Page ID: 12
+
+Node PID: 13
+Key: 8     Page ID: 0     Slot ID: 8
+Parent Node Page ID: 12
+
+Node PID: 14
+Key: 9     Page ID: 0     Slot ID: 9
+Parent Node Page ID: 16
+
+Node PID: 15
+Key: 10     Page ID: 0     Slot ID: 10
+Parent Node Page ID: 16
+
+Node PID: 17
+Key: 11     Page ID: 0     Slot ID: 11
+Parent Node Page ID: 16
+
+Node PID: 18
+Key: 12     Page ID: 0     Slot ID: 12
+Parent Node Page ID: 20
+
+Node PID: 19
+Key: 13     Page ID: 0     Slot ID: 13
+Key: 14     Page ID: 0     Slot ID: 14
+Parent Node Page ID: 20
+

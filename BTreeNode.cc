@@ -195,9 +195,9 @@ RC BTLeafNode::setParentPid(PageId pid)
 void BTLeafNode::printNode()
 {
 	for(map<int, RecordId>::iterator it = nodeBuckets.begin(); it != nodeBuckets.end(); ++it) {
-		cout << "Node Key: " << it->first << endl;
-		cout << "Page ID: " << it->second.pid << "    Slot ID: " << it->second.sid << endl << endl;
+		cout << "Key: " << it->first << "     Page ID: " << it->second.pid << "     Slot ID: " << it->second.sid << endl;
 	}
+	cout << "Parent Node Page ID: " << parentPid << endl << endl;
 }
 
 BTNonLeafNode::BTNonLeafNode()
@@ -289,7 +289,7 @@ RC BTNonLeafNode::insert(int key, PageId pid)
  * @param midKey[OUT] the key in the middle after the split. This key should be inserted to the parent node.
  * @return 0 if successful. Return an error code if there is an error.
  */
-RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, int& midKey)
+RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, int& midKey, PageId& midPid)
 { 
 	// Insert key and record id
 	nodeBuckets[key] = pid;
@@ -301,6 +301,7 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
 	map<int, PageId>::iterator itSiblingBegin = itMidEntry;
 	advance(itSiblingBegin, 1);
 	midKey = itMidEntry->first;
+	midPid = itMidEntry->second;
 
 	// Copy the second half of the node to the new sibling node and then erase this data from the current node
 	for(map<int, PageId>::iterator it = itSiblingBegin; it != nodeBuckets.end(); ++it) {
@@ -324,13 +325,13 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
  */
 RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
 { 
-	for(map<int, PageId>::iterator it = nodeBuckets.begin(); it != nodeBuckets.end(); ++it) {
+	for(map<int, PageId>::reverse_iterator it = nodeBuckets.rbegin(); it != nodeBuckets.rend(); ++it) { 
 		if(searchKey >= it->first) {
 			pid = it->second;
 			return 0;
 		}
 	}
-	// If the search key is greater than all the keys in the node, return the 
+	// If the search key is less than all the keys in the node, return the 
 	pid = minPageId;
 	return 0; 
 }
@@ -346,6 +347,7 @@ RC BTNonLeafNode::initializeRoot(PageId pid1, int key, PageId pid2)
 { 
 	minPageId = pid1;
 	nodeBuckets[key] = pid2;
+	keyCount = 1;
 	return 0; 
 }
 
@@ -381,8 +383,20 @@ void BTNonLeafNode::clear()
 
 void BTNonLeafNode::printNode()
 {
+	cout << "Parent Node Page ID: " << parentPid << endl;
+	cout << "Min Page ID: " << minPageId << endl;
 	for(map<int, PageId>::iterator it = nodeBuckets.begin(); it != nodeBuckets.end(); ++it) {
-		cout << "Node Key: " << it->first << endl;
-		cout << "Page ID: " << it->second << endl << endl;
+		cout << "Node Key: " << it->first << "     Page ID: " << it->second << endl;
 	}
+	cout << endl;
+}
+
+vector<PageId> BTNonLeafNode::getAllPids()
+{
+	vector<PageId> pids;
+	pids.push_back(minPageId);
+	for(map<int, PageId>::iterator it = nodeBuckets.begin(); it != nodeBuckets.end(); ++it) {
+		pids.push_back(it->second);
+	}
+	return pids;
 }
